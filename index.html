@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Our Payment Records</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1b1f24;--muted:#6a7380;--line:#e2e5ea;--accent:#2f6fed;--bad:#d93a3a;--good:#1f9d57}
+@media (prefers-color-scheme:dark){:root{--bg:#14171c;--card:#1d2127;--text:#eceff3;--muted:#9aa3af;--line:#2d333b;--accent:#6b9bff;--bad:#ff6b6b;--good:#4cc888}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:0}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+form.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+label{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:4px}
+input,select,button{font:inherit;padding:9px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text)}
+button{background:var(--accent);color:#fff;border:0;cursor:pointer;font-weight:600}
+button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);padding:5px 9px;font-weight:500;font-size:12px}
+button.del{color:var(--bad)}
+.full{grid-column:1/-1}
+.stats{display:flex;gap:10px;flex-wrap:wrap}
+.stat{flex:1;min-width:130px;margin-bottom:0}.stat b{display:block;font-size:19px}.stat span{font-size:12px;color:var(--muted)}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:760px}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:12px}
+.tag{padding:2px 8px;border-radius:20px;font-size:12px;border:1px solid var(--line)}
+.yes{color:var(--bad);border-color:var(--bad)}.no{color:var(--good);border-color:var(--good)}
+.msg{color:var(--muted);text-align:center;padding:24px}
+.login{max-width:360px;margin:12vh auto 0}
+.login form{display:flex;flex-direction:column;gap:12px}
+.err{color:var(--bad);font-size:13px;min-height:18px}
+.link{background:none;color:var(--accent);padding:0;border:0;font-weight:500;font-size:13px}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tab{background:var(--card);color:var(--muted);border:1px solid var(--line);flex:1}
+.tab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.nrow{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
+.nrow small{color:var(--muted);display:block;font-size:12px}
+.nform{display:flex;gap:8px}.nform input{flex:1;min-width:0}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+
+<!-- ============ PUT YOUR SUPABASE KEYS HERE ============ -->
+<script>
+const SUPABASE_URL = "PASTE_YOUR_PROJECT_URL_HERE";
+const SUPABASE_KEY = "PASTE_YOUR_ANON_PUBLIC_KEY_HERE";
+</script>
+<!-- ===================================================== -->
+
+<div class="wrap" id="loginView" hidden>
+  <div class="card login">
+    <h1>💳 Our Payment Records</h1>
+    <p style="color:var(--muted);margin:6px 0 14px" id="loginSub">Login with your ID and password</p>
+    <form id="lf">
+      <label>ID (username)<input id="u" required autocomplete="username" pattern="[A-Za-z0-9_]{3,20}" title="3-20 letters, numbers or _"></label>
+      <label>Password<input id="p" type="password" required minlength="6" autocomplete="current-password"></label>
+      <div class="err" id="lerr"></div>
+      <button type="submit" id="lbtn">Login</button>
+      <button type="button" class="link" id="swap">Create account</button>
+    </form>
+  </div>
+</div>
+
+<div class="wrap" id="appView" hidden>
+  <div class="top">
+    <h1>💳 Our Payment Records</h1>
+    <div><span id="me" style="color:var(--muted);font-size:13px"></span> <button class="ghost" id="out">Logout</button></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" id="tabR">Records</button>
+    <button class="tab" id="tabN">Notes</button>
+  </div>
+
+  <div id="notesView" hidden>
+    <div class="card">
+      <form class="nform" id="nf">
+        <input id="nsite" required placeholder="Type a website name and save">
+        <button type="submit" id="nsave">Save</button>
+      </form>
+    </div>
+    <div class="card">
+      <input id="nq" placeholder="Search notes…" style="width:100%;margin-bottom:6px">
+      <div id="nlist"><div class="msg">Loading…</div></div>
+    </div>
+  </div>
+
+  <div id="recView">
+  <div class="stats" id="stats" style="margin-bottom:14px"></div>
+
+  <div class="card">
+    <form class="grid" id="f">
+      <label>Website name<input id="site" required placeholder="e.g. shop.com"></label>
+      <label>Payment method<select id="method"><option>UPI</option><option>Card</option></select></label>
+      <label>UTR / Transaction ID<input id="utr" required placeholder="Enter UTR"></label>
+      <label>Amount (₹)<input id="amount" type="number" min="0" step="0.01" required></label>
+      <label>Disputed?<select id="disp"><option value="No">No</option><option value="Yes">Yes</option></select></label>
+      <label id="ddWrap" hidden>Date of dispute<input id="ddate" type="date"></label>
+      <button class="full" id="save" type="submit">Add record</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <input id="q" placeholder="Search website, UTR or person…" style="width:100%;margin-bottom:10px">
+    <div class="tw"><table>
+      <thead><tr><th>Website</th><th>Method</th><th>UTR</th><th>Amount</th><th>Disputed</th><th>Dispute date</th><th>Added by</th><th></th></tr></thead>
+      <tbody id="body"><tr><td colspan="8" class="msg">Loading…</td></tr></tbody>
+    </table></div>
+  </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>{const d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML};
+const inr=n=>'₹'+Number(n||0).toLocaleString('en-IN',{maximumFractionDigits:2});
+let sb;
+try{
+  if(SUPABASE_URL.startsWith('PASTE')||SUPABASE_KEY.startsWith('PASTE'))throw new Error('keys');
+  sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+}catch(err){
+  document.body.innerHTML='<div style="max-width:420px;margin:15vh auto;padding:16px;font:16px/1.5 system-ui;text-align:center"><h2>Setup needed</h2><p>Open this file in a text editor and paste your Supabase Project URL and anon key at the top. Then host the file (Netlify or GitHub Pages) and open the hosted link in your browser.</p></div>';
+  throw new Error('Setup needed');
+}
+const toEmail=u=>u.trim().toLowerCase()+'@records.app';
+let rows=[],editId=null,signup=false,timer=null;
+
+/* ---------- login ---------- */
+$('swap').onclick=()=>{signup=!signup;
+  $('lbtn').textContent=signup?'Create account':'Login';
+  $('swap').textContent=signup?'I already have an account':'Create account';
+  $('loginSub').textContent=signup?'Pick an ID and password':'Login with your ID and password';
+  $('lerr').textContent=''};
+$('lf').onsubmit=async e=>{
+  e.preventDefault();$('lerr').textContent='';$('lbtn').disabled=true;
+  const cred={email:toEmail($('u').value),password:$('p').value};
+  const {error}=signup?await sb.auth.signUp(cred):await sb.auth.signInWithPassword(cred);
+  $('lbtn').disabled=false;
+  if(error){$('lerr').textContent=error.message.includes('Invalid login')?'Wrong ID or password':error.message;return}
+  start();
+};
+$('out').onclick=async()=>{await sb.auth.signOut();clearInterval(timer);show(false)};
+function show(app){$('appView').hidden=!app;$('loginView').hidden=app}
+
+async function start(){
+  const {data}=await sb.auth.getSession();
+  if(!data.session){show(false);return}
+  show(true);
+  $('me').textContent=data.session.user.email.split('@')[0];
+  await load();clearInterval(timer);timer=setInterval(load,15000);
+}
+
+/* ---------- data ---------- */
+async function load(){
+  const {data,error}=await sb.from('records').select('*').order('created_at',{ascending:false});
+  if(error){$('body').innerHTML='<tr><td colspan="8" class="msg">Could not load: '+esc(error.message)+'</td></tr>';return}
+  rows=data;render();
+}
+function render(){
+  const q=$('q').value.trim().toLowerCase();
+  const list=rows.filter(r=>!q||[r.site,r.utr,r.username].join(' ').toLowerCase().includes(q));
+  const total=rows.reduce((a,r)=>a+Number(r.amount||0),0);
+  const dis=rows.filter(r=>r.disputed==='Yes');
+  $('stats').innerHTML=
+    `<div class="card stat"><b>${rows.length}</b><span>Records</span></div>`+
+    `<div class="card stat"><b>${inr(total)}</b><span>Total amount</span></div>`+
+    `<div class="card stat"><b>${dis.length}</b><span>Disputed (${inr(dis.reduce((a,r)=>a+Number(r.amount||0),0))})</span></div>`;
+  if(!list.length){$('body').innerHTML='<tr><td colspan="8" class="msg">No records yet.</td></tr>';return}
+  $('body').innerHTML=list.map(r=>`<tr>
+    <td><b>${esc(r.site)}</b></td><td>${esc(r.method)}</td><td>${esc(r.utr)}</td><td>${inr(r.amount)}</td>
+    <td><span class="tag ${r.disputed==='Yes'?'yes':'no'}">${esc(r.disputed)}</span></td>
+    <td>${esc(r.dispute_date||'—')}</td><td>${esc(r.username)}</td>
+    <td><button class="ghost" data-e="${r.id}">Edit</button> <button class="ghost del" data-d="${r.id}">Delete</button></td></tr>`).join('');
+}
+function toggleDate(){const y=$('disp').value==='Yes';$('ddWrap').hidden=!y;$('ddate').required=y;if(!y)$('ddate').value=''}
+$('disp').onchange=toggleDate;$('q').oninput=render;
+
+$('f').onsubmit=async e=>{
+  e.preventDefault();$('save').disabled=true;
+  const {data:s}=await sb.auth.getSession();
+  const rec={site:$('site').value.trim(),method:$('method').value,utr:$('utr').value.trim(),
+    amount:parseFloat($('amount').value),disputed:$('disp').value,
+    dispute_date:$('disp').value==='Yes'?$('ddate').value:null};
+  let error;
+  if(editId){({error}=await sb.from('records').update(rec).eq('id',editId))}
+  else{rec.username=s.session.user.email.split('@')[0];({error}=await sb.from('records').insert(rec))}
+  $('save').disabled=false;
+  if(error){alert('Could not save: '+error.message);return}
+  $('f').reset();editId=null;$('save').textContent='Add record';toggleDate();load();
+};
+$('body').onclick=async e=>{
+  const eid=e.target.dataset.e,did=e.target.dataset.d;
+  if(eid){const r=rows.find(x=>String(x.id)===eid);if(!r)return;
+    editId=r.id;$('site').value=r.site;$('method').value=r.method;$('utr').value=r.utr;
+    $('amount').value=r.amount;$('disp').value=r.disputed;toggleDate();$('ddate').value=r.dispute_date||'';
+    $('save').textContent='Save changes';$('f').scrollIntoView({behavior:'smooth'})}
+  if(did&&confirm('Delete this record?')){
+    const {error}=await sb.from('records').delete().eq('id',did);
+    if(error)alert(error.message);else load()}
+};
+
+/* ---------- notes ---------- */
+let notes=[];
+function setTab(n){
+  $('notesView').hidden=!n;$('recView').hidden=n;
+  $('tabN').classList.toggle('on',n);$('tabR').classList.toggle('on',!n);
+}
+$('tabR').onclick=()=>setTab(false);
+$('tabN').onclick=()=>{setTab(true);loadNotes()};
+async function loadNotes(){
+  const {data,error}=await sb.from('notes').select('*').order('created_at',{ascending:false});
+  if(error){$('nlist').innerHTML='<div class="msg">Could not load notes: '+esc(error.message)+' (did you run notes.sql?)</div>';return}
+  notes=data;renderNotes();
+}
+function renderNotes(){
+  const q=$('nq').value.trim().toLowerCase();
+  const list=notes.filter(n=>!q||n.site.toLowerCase().includes(q));
+  if(!list.length){$('nlist').innerHTML='<div class="msg">No notes yet.</div>';return}
+  $('nlist').innerHTML=list.map(n=>`<div class="nrow"><div><b>${esc(n.site)}</b>
+    <small>${esc(n.username||'')} · ${new Date(n.created_at).toLocaleDateString()}</small></div>
+    <button class="ghost del" data-nd="${n.id}">Delete</button></div>`).join('');
+}
+$('nq').oninput=renderNotes;
+$('nf').onsubmit=async e=>{
+  e.preventDefault();$('nsave').disabled=true;
+  const {data:s}=await sb.auth.getSession();
+  const {error}=await sb.from('notes').insert({site:$('nsite').value.trim(),username:s.session.user.email.split('@')[0]});
+  $('nsave').disabled=false;
+  if(error){alert('Could not save: '+error.message);return}
+  $('nsite').value='';loadNotes();
+};
+$('nlist').onclick=async e=>{
+  const id=e.target.dataset.nd;
+  if(id&&confirm('Delete this note?')){
+    const {error}=await sb.from('notes').delete().eq('id',id);
+    if(error)alert(error.message);else loadNotes()}
+};
+
+start();
+</script>
+</body>
+</html>
